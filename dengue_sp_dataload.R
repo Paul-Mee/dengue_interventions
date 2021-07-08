@@ -104,6 +104,17 @@ muni$code_muni6 = substr(as.character(muni$code_muni),1,6)
 # Join to Dengue data 
 DEN.dt  <- merge(DEN.dt,muni,by.x="id_municip",by.y="code_muni6")
 
-# Join to 2019 population data 
+# Join to  population data 
+# Read Population data - 2020
+# Source site
+# https://www.ibge.gov.br/en/statistics/social/population/18448-estimates-of-resident-population-for-municipalities-and-federation-units.html?=&t=o-que-e
 
+IBGE <- read_xlsx("IBGE/estimativa_dou_2020_municipality.xlsx")
+names(IBGE)[2] <- "state_code"
+names(IBGE)[3] <- "municipality_code"
+names(IBGE)[4] <- "municipality_name"
+names(IBGE)[5] <- "population"
+IBGE$code_muni6 = paste0(IBGE$state_code,IBGE$municipality_code)
 
+# Join to Dengue data 
+DEN.dt  <- merge(DEN.dt,IBGE,by.x="id_municip",by.y="code_muni6")
