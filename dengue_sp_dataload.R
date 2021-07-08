@@ -8,6 +8,7 @@ require(plyr)
 require(data.table)
 require(readxl)
 require(geobr)
+require(crul)
 
 #  Set home directory  and load data 
 if(Sys.info()[['user']]=="phpupmee"){
@@ -115,6 +116,12 @@ names(IBGE)[3] <- "municipality_code"
 names(IBGE)[4] <- "municipality_name"
 names(IBGE)[5] <- "population"
 IBGE$code_muni6 = paste0(IBGE$state_code,IBGE$municipality_code)
-
+IBGE$code_muni6 = substr(as.character(IBGE$code_muni6),1,6)
 # Join to Dengue data 
-DEN.dt  <- merge(DEN.dt,IBGE,by.x="id_municip",by.y="code_muni6")
+DEN.dt  <- merge(DEN.dt,IBGE,by.x="id_municip",by.y="code_muni6",all.X=TRUE)
+DEN.dt$population <- as.integer(DEN.dt$population)
+DEN.dt$incidence = DEN.dt$nu_notific/DEN.dt$population*10000
+
+# Plots of Dengue incidence over time
+
+
