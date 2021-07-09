@@ -189,12 +189,13 @@ save(DEN_VC.dt, file = paste0(data_dir,"/DEN_VC_dt.RData"))
 
 # Plot 
 ## Set parameters
-# munic="355030" #SAO PAULO
-munic="350280" #ARCATUBA
+munic="355030" #SAO PAULO
+#munic="350280" #ARCATUBA
+# munic="354880" # SAO CAETANO
 year1="2015"
 year2="2016"
 mean_window=7
-plot_title = paste0("Dengue incidence for municipality ID = ",munic," Year = ",year," Mean window = ",mean_window, "days")
+plot_title = paste0("Dengue incidence for municipality ID = ",munic," - ",year1," to ",year2, " - Mean window = ",mean_window, "days")
 
 plot_data <- DEN_VC.dt %>%
   # select municipality
@@ -210,7 +211,7 @@ plot_data <- DEN_VC.dt %>%
               dplyr::mutate(avg_inc= zoo::rollmean(incidence, mean_window,align="left",fill=NA)) 
 plot_data <- as.data.frame(plot_data)
             
-y_val = mean(plot_data$incidence) 
+y_val = (max(plot_data$avg_inc,na.rm=TRUE) - min(plot_data$avg_inc,na.rm=TRUE))/2
 
 # Plot
    ggplot() +
@@ -219,8 +220,45 @@ y_val = mean(plot_data$incidence)
     y="Dengue Incidence - smoothed") +
     # control activities
     geom_point( data=subset(plot_data,!is.na(atividade)) 
-                ,aes(x=dt_notific,y=y_val,color=atividade), shape="circle", size = 4)     
+                ,aes(x=dt_notific,y=y_val,color=atividade), shape="circle", size = 3)     
   
+ggsave("plots/examp_inc_intervention.png", width=40, height=16, units="cm")
+
+
+### Histogram of intervention vs incidence 
+
+
+#unique(DEN_VC.dt[c("atividade")])
+
+hist_data <- DEN_VC.dt %>%
+  tidyr::complete(dt_notific = seq.Date(min(dt_notific), max(dt_notific), by="day")) %>%
+  # replace NA for incidence with 0 
+  tidyr::replace_na(list(incidence = 0)) %>%
+  # Rolling mean
+  dplyr::group_by(id_municip) %>%
+  dplyr::mutate(avg_inc= zoo::rollmean(incidence, mean_window,align="left",fill=NA)) 
+  # Filter out very high values
+  #filter(avg_inc > 0.02 & avg_inc < 0.5 ) 
+   
+  hist_data  <- as.data.frame(hist_data )
+
+# ggplot()+
+#   geom_histogram(data=subset(hist_data,!is.na(atividade))
+#             ,aes(x = avg_inc,color = atividade), fill = "white"
+#              ,position = "identity", bins = 30) 
+
+ggplot(data=subset(hist_data,!is.na(atividade)), aes(x = avg_inc)) +
+  geom_histogram(fill = "white", colour = "black", bins = 50) +
+  facet_grid(atividade ~ ., scales = "free")
+
+ggsave("plots/hist_intervention.png", width=20, height=60, units="cm")
+
+
+## Generate mean incidence at a particular date for all years 
+## Calculate ratio current avg_inc / avg_inc (all years)
+
+
+DEN_summ <- hist_data[c("name_upper_ASC","dt_notific","avg_inc")]
 
 
 
