@@ -9,6 +9,10 @@ require(data.table)
 require(readxl)
 require(geobr)
 require(crul)
+require(dplyr)
+require(ggplot2)
+require(lubridate)
+require(tidyr)
 
 #  Set home directory  and load data 
 if(Sys.info()[['user']]=="phpupmee"){
@@ -59,7 +63,24 @@ VC.dt <- as.data.table(rbind(readxl::read_excel(paste0(data_dir,"/DADOS_SUCEN_LE
                              readxl::read_excel(paste0(data_dir,"/DADOS_SUCEN_LEG_translated.xlsx"), sheet = "2017"),
                              readxl::read_excel(paste0(data_dir,"/DADOS_SUCEN_LEG_translated.xlsx"), sheet = "2018")))
 
-## Quick table of  interventions per year per municipality 
+save(VC.dt, file = paste0(data_dir,"/VC_dt.RData"))
+# If running interactively 
+#load(paste0(data_dir,"/R_Data/VC_dt.RData"))
+# add a date column
+relcols = as.matrix(VC.dt[, 1:2])
+dates = apply(relcols, 1, function(x) as.character(as.Date(paste(x[1], x[2], "01", sep = "-"))))
+VC.dt$Date = as.Date(dates)
+
+### limit to a subset of activities
+incl_list = c("Bloqueio - Nebulizacao",
+              "Ponto Estrategico",
+              "Bloqueio - Contr Criadouro",
+              "Casa a Casa - Intensificacao",
+              "Imovel Especial")
+VC_sub.dt = VC.dt[VC.dt$atividade %in% incl_list, ]
+
+
+## Quick table of  interventions per municipality 
 iv.year <- as.data.frame(table(VC.dt$municipio,VC.dt$ano))
 names(iv.year)[1] <- "municipality"
 names(iv.year)[2] <- "year"
@@ -102,6 +123,10 @@ muni$name_upper = stri_trans_general(str = muni$name_upper, id = "Latin-ASCII")
 # 6 digit municipality code
 muni$code_muni6 = substr(as.character(muni$code_muni),1,6)
 
+
+muni$name_upper_ASC <-  iconv(muni$name_upper,from="UTF-8",to="ASCII//TRANSLIT")
+
+
 # Join to Dengue data 
 DEN.dt  <- merge(DEN.dt,muni,by.x="id_municip",by.y="code_muni6")
 
@@ -122,6 +147,80 @@ DEN.dt  <- merge(DEN.dt,IBGE,by.x="id_municip",by.y="code_muni6",all.X=TRUE)
 DEN.dt$population <- as.integer(DEN.dt$population)
 DEN.dt$incidence = DEN.dt$nu_notific/DEN.dt$population*10000
 
-# Plots of Dengue incidence over time
+
+
+
+
+# Sort by date
+DEN.dt <- DEN.dt %>%
+  arrange(id_municip,dt_notific)
+
+# add zero counts for missing dates
+all_municip_dates <- tidyr::complete(DEN.dt, id_municip, dt_notific)
+# Keep first two columns
+all_municip_dates <- all_municip_dates[c("id_municip", "dt_notific")]
+# Merge with Dengue data 
+DEN_all.dt  <- merge(x=all_municip_dates,y=DEN.dt,by=c("id_municip","dt_notific"),all.x=TRUE)
+# replace NA for incidence with 0 
+DEN_all.dt  <- DEN_all.dt %>% tidyr::replace_na(list(incidence = 0))
+# Just get place date & incidence 
+DEN_all.dt <- DEN_all.dt[c("id_municip", "dt_notific","incidence")]
+# Now add names of places again
+DEN_all.dt  <- merge(DEN_all.dt,muni,by.x="id_municip",by.y="code_muni6")
+
+# Merge VC subset data 
+DEN_VC.dt  <- merge(DEN_all.dt,VC_sub.dt,by.x=c("name_upper_ASC","dt_notific"),by.y=c("municipio","Date"),all.x = TRUE)
+# Extract year 
+DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$dt_notific)
+
+
+## Save DEN_VC data
+save(DEN_VC.dt, file = paste0(data_dir,"/DEN_VC_dt.RData"))
+# If running interactively 
+#load(paste0(data_dir,"/R_Data/DEN_VC_dt.RData"))
+                                                                                    
+# Select Municipality 
+
+#municip.dt <- unique(DEN.dt[c("id_municip","name_muni")])
+
+
+
+
+
+# Plot 
+## Set parameters
+# munic="355030" #SAO PAULO
+munic="350280" #ARCATUBA
+year1="2015"
+year2="2016"
+mean_window=7
+plot_title = paste0("Dengue incidence for municipality ID = ",munic," Year = ",year," Mean window = ",mean_window, "days")
+
+plot_data <- DEN_VC.dt %>%
+  # select municipality
+  filter(id_municip==munic) %>%
+    # select year 
+    filter(yr_notific>=year1 & yr_notific<=year2) %>%
+      # add zero counts for missing dates
+      tidyr::complete(dt_notific = seq.Date(min(dt_notific), max(dt_notific), by="day")) %>%
+        # replace NA for incidence with 0 
+          tidyr::replace_na(list(incidence = 0)) %>%
+          # Rolling mean
+          dplyr::group_by(id_municip) %>%
+              dplyr::mutate(avg_inc= zoo::rollmean(incidence, mean_window,align="left",fill=NA)) 
+plot_data <- as.data.frame(plot_data)
+            
+y_val = mean(plot_data$incidence) 
+
+# Plot
+   ggplot() +
+   geom_line(data=plot_data,aes(x=dt_notific,y=avg_inc),color = "red", size = .75) +
+   labs(title=plot_title,
+    y="Dengue Incidence - smoothed") +
+    # control activities
+    geom_point( data=subset(plot_data,!is.na(atividade)) 
+                ,aes(x=dt_notific,y=y_val,color=atividade), shape="circle", size = 4)     
+  
+
 
 
