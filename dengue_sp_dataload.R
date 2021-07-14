@@ -4,15 +4,15 @@
 rm(list=ls())
 
 # Main packages
-require(plyr)
-require(data.table)
-require(readxl)
-require(geobr)
-require(crul)
-require(dplyr)
-require(ggplot2)
-require(lubridate)
-require(tidyr)
+library(plyr)
+library(data.table)
+library(readxl)
+library(geobr)
+library(crul)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(tidyr)
 
 #  Set home directory  and load data 
 if(Sys.info()[['user']]=="phpupmee"){
@@ -177,7 +177,7 @@ DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$dt_notific)
 ## Save DEN_VC data
 save(DEN_VC.dt, file = paste0(data_dir,"/DEN_VC_dt.RData"))
 # If running interactively 
-#load(paste0(data_dir,"/R_Data/DEN_VC_dt.RData"))
+#load(paste0(data_dir,"/DEN_VC_dt.RData"))
                                                                                     
 # Select Municipality 
 
@@ -251,7 +251,7 @@ ggplot(data=subset(hist_data,!is.na(atividade)), aes(x = avg_inc)) +
   geom_histogram(fill = "white", colour = "black", bins = 50) +
   facet_grid(atividade ~ ., scales = "free")
 
-ggsave("plots/hist_intervention.png", width=20, height=60, units="cm")
+ggsave("plots/hist_intervention_all.png", width=20, height=60, units="cm")
 
 
 ## Generate mean incidence at a particular date for all years 
