@@ -119,13 +119,7 @@ save(DEN.dt, file = paste0(data_dir,"/DEN_dt.RData"))
 # If running interactively 
 #load(paste0(data_dir,"/DEN_dt.RData"))
 
-# # Match to municipality names 
-# muni <- geobr::read_municipality(code_muni= "SP", year=2019)
-# muni$name_upper = toupper(muni$name_muni)
-# muni$name_upper = stri_trans_general(str = muni$name_upper, id = "Latin-ASCII")
-# # 6 digit municipality code
-# muni$code_muni6 = substr(as.character(muni$code_muni),1,6)
-# muni$name_upper_ASC <-  iconv(muni$name_upper,from="UTF-8",to="ASCII//TRANSLIT")
+
 
 ## unique municipalities
 
@@ -215,33 +209,43 @@ save(DEN_all.dt, file = paste0(data_dir,"/DEN_all_dt.RData"))
 length(unique(DEN_all.dt$municipality_id))
 #1450
 
+## select incidence data for SP state
+DEN_all_SP.dt <- as.data.frame(dplyr::filter(DEN_all.dt, state == "SP"))
 
-
+length(unique(DEN_all_SP.dt$municipality_id))
+##645
 
 ## Checking municipality names in intervention data 
 inter_mun_list<- as.data.frame(unique(VC_sub.dt$municipio))
 names(inter_mun_list)[1] <- "municipio"
-# Data OK all upper case without spanish language characters
-incidence_mun_list <- as.data.frame(unique(DEN_all.dt$name_upper_ASC))
-names(incidence_mun_list)[1] <- "name_upper_ASC"
+# Data OK all upper case without spanish language characters - 500 places
+incidence_mun_list <- as.data.frame(unique(DEN_all_SP.dt$municipality_name_upper))
+names(incidence_mun_list)[1] <- "municipality_name_upper"
+## 645 no duplicate names
 
-check_data.dt <- merge(inter_mun_list,incidence_mun_list,by.x="municipio",by.y="name_upper_ASC",all.x=TRUE)
+check_data.dt <- merge(inter_mun_list,incidence_mun_list,by.x="municipio",by.y="municipality_name_upper",all.x=TRUE)
 ## all 500 municipalities with intervention data also have incidence data
 
 ## Now merge incidence data with intervention data 
-DEN_VC.dt  <- merge(DEN_all.dt,VC_sub.dt,by.x=c("name_upper_ASC","dt_notific"),by.y=c("municipio","Date"),all.x = TRUE)
+DEN_VC.dt  <- merge(DEN_all_SP.dt,VC_sub.dt,by.x=c("municipality_name_upper","notification_date"),by.y=c("municipio","Date"),all.x = TRUE)
 
 # NB We cannot assume that places with not interventions reported actually had no interventions 
 
 # Extract year 
-DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$dt_notific)
+DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$notification_date)
 
 
 ## Save DEN_VC data
 save(DEN_VC.dt, file = paste0(data_dir,"/DEN_VC_dt.RData"))
 # If running interactively 
 #load(paste0(data_dir,"/DEN_VC_dt.RData"))
-                                                                                    
+
+
+### Consider removing rows before 1st intervention anywhere to reduce file size
+  
+
+##NB - Need to consider multiple interventions on the same date - multiple rows for same date in analysis
+                                                                                  
 # Select Municipality 
 
 #municip.dt <- unique(DEN.dt[c("id_municip","name_muni")])
