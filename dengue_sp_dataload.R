@@ -66,7 +66,7 @@ VC.dt <- as.data.table(rbind(readxl::read_excel(paste0(data_dir,"/DADOS_SUCEN_LE
 save(VC.dt, file = paste0(data_dir,"/VC_dt.RData"))
 # If running interactively 
 #load(paste0(data_dir,"/R_Data/VC_dt.RData"))
-# add a date column
+# add a date column set all dates to 1st of month 
 relcols = as.matrix(VC.dt[, 1:2])
 dates = apply(relcols, 1, function(x) as.character(as.Date(paste(x[1], x[2], "01", sep = "-"))))
 VC.dt$Date = as.Date(dates)
@@ -89,7 +89,7 @@ iv.year <- reshape(iv.year, idvar = "municipality", timevar = "year", direction 
 
 # Quick data summary 
 
-# Flag missing geocode data 
+# Flag missing geocode data for interventions 
 cadde_dengue_sp.dt$cd_flag=1
 
 cadde_dengue_sp.dt$cd_flag[is.na(cadde_dengue_sp.dt$cd_geocodi)] <- 0
@@ -122,10 +122,14 @@ muni$name_upper = toupper(muni$name_muni)
 muni$name_upper = stri_trans_general(str = muni$name_upper, id = "Latin-ASCII")
 # 6 digit municipality code
 muni$code_muni6 = substr(as.character(muni$code_muni),1,6)
-
-
 muni$name_upper_ASC <-  iconv(muni$name_upper,from="UTF-8",to="ASCII//TRANSLIT")
 
+## unique municipalities
+ length(unique(muni$code_muni))
+# 645
+## municipalities with Dengue data
+ length(unique(DEN.dt$id_municip))
+#1450 ?
 
 # Join to Dengue data 
 DEN.dt  <- merge(DEN.dt,muni,by.x="id_municip",by.y="code_muni6")
