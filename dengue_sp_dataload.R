@@ -115,6 +115,9 @@ cadde_dengue_sp.dt$dt_notific = substr(cadde_dengue_sp.dt$dt_notific,1,nchar(cad
 DEN.dt <- aggregate(nu_notific ~ id_municip + dt_notific, data = cadde_dengue_sp.dt, FUN = length)
 DEN.dt$dt_notific = as.Date(DEN.dt$dt_notific)
 
+save(DEN.dt, file = paste0(data_dir,"/DEN_dt.RData"))
+# If running interactively 
+#load(paste0(data_dir,"/DEN_dt.RData"))
 
 # # Match to municipality names 
 # muni <- geobr::read_municipality(code_muni= "SP", year=2019)
@@ -133,8 +136,7 @@ DEN.dt$dt_notific = as.Date(DEN.dt$dt_notific)
  length(unique(VC_sub.dt$municipio))
 # 500
  
-# Merge Dengue intervention data with municipality data  
-#DEN.dt  <- merge(DEN.dt,muni,by.x="id_municip",by.y="code_muni6")
+
 
 # Join to  population data 
 # Read Population data - 2020
@@ -174,33 +176,62 @@ DEN_muni.dt <- DEN_muni.dt %>%
 all_municip_dates <- tidyr::complete(DEN_muni.dt, id_municip, dt_notific)
 # Keep first two columns
 all_municip_dates <- all_municip_dates[c("id_municip", "dt_notific")]
+length(unique(all_municip_dates$id_municip))
+# 1450 
 
 
 # Merge with Dengue data  and add zero counts for missing dates with no incident cases 
 DEN_all.dt  <- merge(x=all_municip_dates,y=DEN_muni.dt,by=c("id_municip","dt_notific"),all.x=TRUE)
 # replace NA for incidence with 0 
 DEN_all.dt  <- DEN_all.dt %>% tidyr::replace_na(list(incidence = 0))
-
+length(unique(DEN_all.dt$id_municip))
+#1450
 
 # Just get place date & incidence 
 DEN_all.dt <- DEN_all.dt[c("id_municip", "dt_notific","incidence")]
 # Now add names of places again to give a dataset with daily incidence for each municipality
-DEN_all.dt  <- merge(DEN_all.dt,muni,by.x="id_municip",by.y="code_muni6")
+DEN_all.dt  <- merge(DEN_all.dt,IBGE,by.x="id_municip",by.y="code_muni6")
+length(unique(DEN_all.dt$id_municip))
+
+## Getting municiplaity data in upper case without spanish characters
+DEN_all.dt$name_upper = toupper(DEN_all.dt$municipality_name.y)
+DEN_all.dt$name_upper_ASC <-  iconv(DEN_all.dt$name_upper,from="UTF-8",to="ASCII//TRANSLIT")
+
+### Tidy up incidence data file
+
+DEN_all.dt <- DEN_all.dt[,c('municipality_name.y','name_upper_ASC','id_municip','UF.y','dt_notific','incidence')]
+names(DEN_all.dt)[1] <- "municipality_name"
+names(DEN_all.dt)[2] <- "municipality_name_upper"
+names(DEN_all.dt)[3]  <- "municipality_id"
+names(DEN_all.dt)[4]  <- "state"
+names(DEN_all.dt)[5]  <- "notification_date"
+names(DEN_all.dt)[6]  <- "incidence"
+
+
 ## Save incidence data file
 save(DEN_all.dt, file = paste0(data_dir,"/DEN_all_dt.RData"))
 # If running interactively 
 #load(paste0(data_dir,"/DEN_all_dt.RData"))
+length(unique(DEN_all.dt$municipality_id))
+#1450
+
 
 
 
 ## Checking municipality names in intervention data 
 inter_mun_list<- as.data.frame(unique(VC_sub.dt$municipio))
+names(inter_mun_list)[1] <- "municipio"
 # Data OK all upper case without spanish language characters
+incidence_mun_list <- as.data.frame(unique(DEN_all.dt$name_upper_ASC))
+names(incidence_mun_list)[1] <- "name_upper_ASC"
 
-## Now merge intervention data with incidence data 
-DEN_VC.dt  <- merge(VC_sub.dt,DEN_all.dt,by.x=c("municipio","Date"),by.y=c("name_upper_ASC","dt_notific"),all.x = TRUE)
+check_data.dt <- merge(inter_mun_list,incidence_mun_list,by.x="municipio",by.y="name_upper_ASC",all.x=TRUE)
+## all 500 municipalities with intervention data also have incidence data
 
+## Now merge incidence data with intervention data 
+DEN_VC.dt  <- merge(DEN_all.dt,VC_sub.dt,by.x=c("name_upper_ASC","dt_notific"),by.y=c("municipio","Date"),all.x = TRUE)
 
+# NB We cannot assume that places with not interventions reported actually had no interventions 
 
 # Extract year 
 DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$dt_notific)
