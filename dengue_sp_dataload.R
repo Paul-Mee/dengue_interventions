@@ -191,10 +191,17 @@ save(DEN_all.dt, file = paste0(data_dir,"/DEN_all_dt.RData"))
 # If running interactively 
 #load(paste0(data_dir,"/DEN_all_dt.RData"))
 
-## Now merge intervention data 
 
-# Merge VC subset data 
-DEN_VC.dt  <- merge(DEN_all.dt,VC_sub.dt,by.x=c("name_upper_ASC","dt_notific"),by.y=c("municipio","Date"),all.x = TRUE)
+
+## Checking municipality names in intervention data 
+inter_mun_list<- as.data.frame(unique(VC_sub.dt$municipio))
+# Data OK all upper case without spanish language characters
+
+## Now merge intervention data with incidence data 
+DEN_VC.dt  <- merge(VC_sub.dt,DEN_all.dt,by.x=c("municipio","Date"),by.y=c("name_upper_ASC","dt_notific"),all.x = TRUE)
+
+
+
 # Extract year 
 DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$dt_notific)
 
