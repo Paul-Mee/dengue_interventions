@@ -65,7 +65,7 @@ VC.dt <- as.data.table(rbind(readxl::read_excel(paste0(data_dir,"/DADOS_SUCEN_LE
 
 save(VC.dt, file = paste0(data_dir,"/VC_dt.RData"))
 # If running interactively 
-#load(paste0(data_dir,"/R_Data/VC_dt.RData"))
+#load(paste0(data_dir,"/VC_dt.RData"))
 # add a date column set all dates to 1st of month 
 relcols = as.matrix(VC.dt[, 1:2])
 dates = apply(relcols, 1, function(x) as.character(as.Date(paste(x[1], x[2], "01", sep = "-"))))
@@ -116,23 +116,25 @@ DEN.dt <- aggregate(nu_notific ~ id_municip + dt_notific, data = cadde_dengue_sp
 DEN.dt$dt_notific = as.Date(DEN.dt$dt_notific)
 
 
-# Match to municipality names 
-muni <- geobr::read_municipality(code_muni= "SP", year=2019)
-muni$name_upper = toupper(muni$name_muni)
-muni$name_upper = stri_trans_general(str = muni$name_upper, id = "Latin-ASCII")
-# 6 digit municipality code
-muni$code_muni6 = substr(as.character(muni$code_muni),1,6)
-muni$name_upper_ASC <-  iconv(muni$name_upper,from="UTF-8",to="ASCII//TRANSLIT")
+# # Match to municipality names 
+# muni <- geobr::read_municipality(code_muni= "SP", year=2019)
+# muni$name_upper = toupper(muni$name_muni)
+# muni$name_upper = stri_trans_general(str = muni$name_upper, id = "Latin-ASCII")
+# # 6 digit municipality code
+# muni$code_muni6 = substr(as.character(muni$code_muni),1,6)
+# muni$name_upper_ASC <-  iconv(muni$name_upper,from="UTF-8",to="ASCII//TRANSLIT")
 
 ## unique municipalities
- length(unique(muni$code_muni))
-# 645
-## municipalities with Dengue data
- length(unique(DEN.dt$id_municip))
-#1450 ?
 
-# Join to Dengue data 
-DEN.dt  <- merge(DEN.dt,muni,by.x="id_municip",by.y="code_muni6")
+## municipalities with Dengue incidence data
+ length(unique(DEN.dt$id_municip))
+# 1450 ?
+## municipalities with intervention data (all in SP)
+ length(unique(VC_sub.dt$municipio))
+# 500
+ 
+# Merge Dengue intervention data with municipality data  
+#DEN.dt  <- merge(DEN.dt,muni,by.x="id_municip",by.y="code_muni6")
 
 # Join to  population data 
 # Read Population data - 2020
@@ -144,33 +146,52 @@ names(IBGE)[2] <- "state_code"
 names(IBGE)[3] <- "municipality_code"
 names(IBGE)[4] <- "municipality_name"
 names(IBGE)[5] <- "population"
+### remove parentheses and text within  from population string and convert to integer
+IBGE$population <- gsub("\\s*\\([^\\)]+\\)","",as.character(IBGE$population))
+IBGE$population <- as.integer(IBGE$population)
+
+### Create 6 digit municipality code
 IBGE$code_muni6 = paste0(IBGE$state_code,IBGE$municipality_code)
 IBGE$code_muni6 = substr(as.character(IBGE$code_muni6),1,6)
-# Join to Dengue data 
-DEN.dt  <- merge(DEN.dt,IBGE,by.x="id_municip",by.y="code_muni6",all.X=TRUE)
-DEN.dt$population <- as.integer(DEN.dt$population)
-DEN.dt$incidence = DEN.dt$nu_notific/DEN.dt$population*10000
 
+## unique municipalities
+length(unique(IBGE$code_muni6))
+## 5571 - all Brazil
 
+# Join to Dengue incidence data 
+DEN_muni.dt  <- merge(DEN.dt,IBGE,by.x="id_municip",by.y="code_muni6",all.X=TRUE)
+length(unique(DEN_muni.dt$id_municip))
+# 1450 - all muncipalities have population data
 
+# Calculate daily incidence
+DEN_muni.dt$incidence = DEN_muni.dt$nu_notific/DEN_muni.dt$population*10000
 
-
-# Sort by date
-DEN.dt <- DEN.dt %>%
+# Sort by municipality and date
+DEN_muni.dt <- DEN_muni.dt %>%
   arrange(id_municip,dt_notific)
 
-# add zero counts for missing dates
-all_municip_dates <- tidyr::complete(DEN.dt, id_municip, dt_notific)
+# This make a list of all dates between the first and last date for each municipality
+all_municip_dates <- tidyr::complete(DEN_muni.dt, id_municip, dt_notific)
 # Keep first two columns
 all_municip_dates <- all_municip_dates[c("id_municip", "dt_notific")]
-# Merge with Dengue data 
-DEN_all.dt  <- merge(x=all_municip_dates,y=DEN.dt,by=c("id_municip","dt_notific"),all.x=TRUE)
+
+
+# Merge with Dengue data  and add zero counts for missing dates with no incident cases 
+DEN_all.dt  <- merge(x=all_municip_dates,y=DEN_muni.dt,by=c("id_municip","dt_notific"),all.x=TRUE)
 # replace NA for incidence with 0 
 DEN_all.dt  <- DEN_all.dt %>% tidyr::replace_na(list(incidence = 0))
+
+
 # Just get place date & incidence 
 DEN_all.dt <- DEN_all.dt[c("id_municip", "dt_notific","incidence")]
-# Now add names of places again
+# Now add names of places again to give a dataset with daily incidence for each municipality
 DEN_all.dt  <- merge(DEN_all.dt,muni,by.x="id_municip",by.y="code_muni6")
+## Save incidence data file
+save(DEN_all.dt, file = paste0(data_dir,"/DEN_all_dt.RData"))
+# If running interactively 
+#load(paste0(data_dir,"/DEN_all_dt.RData"))
+
+## Now merge intervention data 
 
 # Merge VC subset data 
 DEN_VC.dt  <- merge(DEN_all.dt,VC_sub.dt,by.x=c("name_upper_ASC","dt_notific"),by.y=c("municipio","Date"),all.x = TRUE)
