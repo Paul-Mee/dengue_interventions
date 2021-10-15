@@ -210,7 +210,7 @@ length(unique(DEN_all.dt$municipality_id))
 #1450
 
 ## select incidence data for SP state
-DEN_all_SP.dt <- as.data.frame(dplyr::filter(DEN_all.dt, state == "SP"))
+DEN_all_SP.dt <- dplyr::filter(DEN_all.dt, state == "SP")
 
 length(unique(DEN_all_SP.dt$municipality_id))
 ##645
@@ -234,6 +234,11 @@ DEN_VC.dt  <- merge(DEN_all_SP.dt,VC_sub.dt,by.x=c("municipality_name_upper","no
 # Extract year 
 DEN_VC.dt$yr_notific <- lubridate::year(DEN_VC.dt$notification_date)
 
+# Rolling mean of incidence 
+# window length (days)
+mean_window <- 7 
+DEN_VC.dt <- DEN_VC.dt %>% 
+    dplyr::mutate(mean_inc= zoo::rollmean(incidence, mean_window,align="left",fill=NA)) 
 
 ## Save DEN_VC data
 save(DEN_VC.dt, file = paste0(data_dir,"/DEN_VC_dt.RData"))
@@ -242,90 +247,74 @@ save(DEN_VC.dt, file = paste0(data_dir,"/DEN_VC_dt.RData"))
 
 
 ### Consider removing rows before 1st intervention anywhere to reduce file size
-  
+## Checking dates 
 
-##NB - Need to consider multiple interventions on the same date - multiple rows for same date in analysis
+tmp.dt <- DEN_VC.dt %>% 
+   filter(!is.na(DEN_VC.dt$ano)) 
+
+min(tmp.dt$notification_date)
+# 1st intervention Jan 1st 2011
+max(tmp.dt$notification_date)
+# last intervention June 1st 2018
+min(DEN_VC.dt$notification_date)
+# 1st incidence data Jan 1st 2007
+max(DEN_VC.dt$notification_date)
+# last incidence data Dec 31st 2019
+
+## remove data before 2011 ?
+
+##NB - Need to consider multiple interventions on the same date in same state - multiple rows for same date in analysis
                                                                                   
 # Select Municipality 
 
 #municip.dt <- unique(DEN.dt[c("id_municip","name_muni")])
 
-
+   DEN_VC_2011.dt <-  DEN_VC.dt %>%
+        filter(notification_date >= as.Date("2011-01-01") )
 
 
 
 # Plot 
 ## Set parameters
-munic="355030" #SAO PAULO
-#munic="350280" #ARCATUBA
-# munic="354880" # SAO CAETANO
-year1="2015"
-year2="2016"
-mean_window=7
-plot_title = paste0("Dengue incidence for municipality ID = ",munic," - ",year1," to ",year2, " - Mean window = ",mean_window, "days")
+#munic <- "SAO PAULO"
+
+munic="SAO CAETANO DO SUL"
+
+year1 <- "2015"
+year2 <- "2015"
+
+
+plot_title <- paste0("Dengue weekly mean incidence for  ",munic," - ",year1," to ",year2)
 
 plot_data <- DEN_VC.dt %>%
   # select municipality
-  filter(id_municip==munic) %>%
+  filter(municipality_name_upper==munic) %>%
     # select year 
-    filter(yr_notific>=year1 & yr_notific<=year2) %>%
-      # add zero counts for missing dates
-      tidyr::complete(dt_notific = seq.Date(min(dt_notific), max(dt_notific), by="day")) %>%
-        # replace NA for incidence with 0 
-          tidyr::replace_na(list(incidence = 0)) %>%
-          # Rolling mean
-          dplyr::group_by(id_municip) %>%
-              dplyr::mutate(avg_inc= zoo::rollmean(incidence, mean_window,align="left",fill=NA)) 
+    filter(yr_notific>=year1 & yr_notific<=year2) 
+     
+  
 plot_data <- as.data.frame(plot_data)
-            
-y_val = (max(plot_data$avg_inc,na.rm=TRUE) - min(plot_data$avg_inc,na.rm=TRUE))/2
+y_val = (max(plot_data$mean_inc,na.rm=TRUE) - min(plot_data$mean_inc,na.rm=TRUE))/2
 
-# Plot
+# Plots to explore association of control activities and incidence for particular municipalities
    ggplot() +
-   geom_line(data=plot_data,aes(x=dt_notific,y=avg_inc),color = "red", size = .75) +
+   geom_line(data=plot_data,aes(x=notification_date,y=mean_inc),color = "red", size = .75) +
    labs(title=plot_title,
     y="Dengue Incidence - smoothed") +
     # control activities
     geom_point( data=subset(plot_data,!is.na(atividade)) 
-                ,aes(x=dt_notific,y=y_val,color=atividade), shape="circle", size = 3)     
+                ,aes(x=notification_date,y=y_val,color=atividade), shape="circle", size = 3)     
   
 ggsave("plots/examp_inc_intervention.png", width=40, height=16, units="cm")
 
 
-### Histogram of intervention vs incidence 
-
-
-#unique(DEN_VC.dt[c("atividade")])
-
-hist_data <- DEN_VC.dt %>%
-  tidyr::complete(dt_notific = seq.Date(min(dt_notific), max(dt_notific), by="day")) %>%
-  # replace NA for incidence with 0 
-  tidyr::replace_na(list(incidence = 0)) %>%
-  # Rolling mean
-  dplyr::group_by(id_municip) %>%
-  dplyr::mutate(avg_inc= zoo::rollmean(incidence, mean_window,align="left",fill=NA)) 
-  # Filter out very high values
-  #filter(avg_inc > 0.02 & avg_inc < 0.5 ) 
-   
-  hist_data  <- as.data.frame(hist_data )
-
-# ggplot()+
-#   geom_histogram(data=subset(hist_data,!is.na(atividade))
-#             ,aes(x = avg_inc,color = atividade), fill = "white"
-#              ,position = "identity", bins = 30) 
-
-ggplot(data=subset(hist_data,!is.na(atividade)), aes(x = avg_inc)) +
-  geom_histogram(fill = "white", colour = "black", bins = 50) +
-  facet_grid(atividade ~ ., scales = "free")
-
-ggsave("plots/hist_intervention_all.png", width=20, height=60, units="cm")
-
+## To do 
 
 ## Generate mean incidence at a particular date for all years 
 ## Calculate ratio current avg_inc / avg_inc (all years)
 
 
-DEN_summ <- hist_data[c("name_upper_ASC","dt_notific","avg_inc")]
+
 
 
 
